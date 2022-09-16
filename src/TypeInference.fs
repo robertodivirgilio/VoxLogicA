@@ -1,229 +1,3 @@
-(*
-module VoxLogicA.TypeInference
-open Parser
-type Position = string
-
-type Expression = 
-    | ECall of Position * string * (Expression list)
-    | ENumber of float
-    | EBool of bool
-    | EString of string
-
-type Command = 
-    | Declaration of string * (string list) * Expression    
-    | Save of Position * string * Expression 
-    | Print of Position * string * Expression
-    | Import of string
-
-type Program = Program of list<Command>
-
-
-
-type exprType = 
-    TNumber | TBool | TString 
-type commType=TFun of List<exprType>*exprType 
-
-type typeEnv = list<string>*(string->exprType)
-
-type Alberello<'a>= Foglia of 'a | Nodocall of list<Alberello<'a>>
-
-
-let alloca: typeEnv->list<string>*typeEnv=
-    fun Gamma->
-        let l=fst Gamma
-        let l1="vuoto"::l
-        let Gamma1=(l1,snd Gamma)
-        (l,Gamma1)
-
-let aggiorna: typeEnv -> string->exprType->typeEnv =
-    fun Gamma str e->
-        match Gamma with 
-        | (l,fnz)-> let fnz1 l1 = if str=l1 then e else fnz l1 in (l,fnz1) 
-
-
-
-
-(*let Gamma1=snd(alloca Gamma)
-                               match fst Gamma1 with
-                               |"vuoto"::l-> let l1=str::l
-                                             let Gamma2=(l1,snd Gamma1)
-                                             Gamma2
-*)
-
-
-let rec concatenate a b=
-    match a with
-    |[]->b
-    |x::resto-> x::(concatenate resto b)                                      
-let rec concatenate3 a b c=concatenate (concatenate a  b) c
-
-
-
-
-
-let rec isinlistexpr (str:Expression) lexpr=  //Ci dice se una lista di stringhe si trova quantomeno nella lista di espressioni
-    match lexpr with
-    |[]->false
-    |(EString str1)::rest->if str=(EString str1) then true else false
-    |(ECall (_,_,lista))::rest->(isinlistexpr str lista)&&(isinlistexpr str rest)
-    |_::a->isinlistexpr str a
-
-let rec isin (lstr:list<string>) (expr:Expression)= //Ci dice se una lista di stringhe si trova quantomeno nell'espressione
-    match lstr with
-    |[]->true
-    |str::rest->match expr with
-                |EString str->if rest=[] then true else false
-                |ECall (_,_,lexpr)->isinlistexpr (EString str) lexpr
-                |_->false
-
-
-(*
-
-let rec typer lstr expr Gamma=
-    match lstr with
-    |[]->[]
-    |str::rest->let hexpr= hmExpr str Gamma
-
-let rec evaluate (lst:list<Expression>) G expr=    //valuto expr con i dati in lst, usando G
-    match expr with
-    |ENumber a-> ENumber a
-    |EBool b->EBool b
-    |EString s-> EString s
-    |ECall (s,f, lexpr)->let z=(search f G)
-                         if fst(z) then match lst with
-                                        |[]-> ECall (s,f, lexpr)
-                                        |a::resto->match lexpr with 
-                                                    |[]->failwith "no se puede faire"
-                                                    |b::rest1->let c=(evaluate a (b::rest1))
-NON SERVE A NULLA, MA AUMENTA LE RIGHE DI CODICE QUINDI FA FIGO
-*)  
-
-
-//Questa funzione unifica le espressioni, ma per definirla ho bisogno di un'unificazione di lista di espressioni, poiche' con ECall ho bisogno di unificare anche gli argomenti che do in pasto alle funzioni
-//G e' la memoria, che salva le unificazioni ben riuscite, DA MIGLIORARE:G dovrebbe essere un insieme, quando invece e' una lista, perche'in questo caso salva piu' volte la stessa cosa
-
-
-
-let rec search (f:string) G=
-        match G with
-        |[]-> (false,(ENumber 1))
-        |a::rest->if f=fst(a) then (true,snd(a)) else (search f rest)
-
-let rec unifyexpr ta tb G=  
-    match ta with
-        |[]->match tb with 
-                |[]->  (true,G)
-                |_->(false,G)
-        |(ENumber a)::rest->match tb with 
-                            |(ECall(_,g,[]))::rest1->unifyexpr rest rest1 ((g,ENumber a)::G)
-                            |(ENumber a)::rest1->unifyexpr rest rest1 G
-                            |_->(false,G)
-        |(EBool a)::rest->match tb with 
-                            |(ECall(_,g,[]))::rest1->unifyexpr rest rest1 ((g,EBool a)::G)
-                            |(EBool a)::rest1->unifyexpr rest rest1 G
-                            |_->(false,G)
-        |(EString s)::rest->match tb with
-                            |(ECall(_,g,[]))::rest1->unifyexpr rest rest1 ((g,EString s)::G)
-                            |(EString s)::rest1->unifyexpr rest rest1 G
-                            |_->(false,G)
-        |(ECall (_,f,lexpr))::rest->match lexpr with
-                                    |[]->match tb with 
-                                            |ECall (s,g,lexpr1)::rest1->match f=g with
-                                                                        |true-> match lexpr1 with
-                                                                                    |[]->unifyexpr rest rest1 G
-                                                                                    |_->(false,G)
-                                                                        |_->if (isinlistexpr (EString f) (lexpr1)) then (false,G) else unifyexpr rest rest1 ((f,ECall (s,g,lexpr1))::G)
-                                            |a::rest1-> if (isinlistexpr (EString f) (a::[])) then (false,G) else unifyexpr rest rest1 ((f,a)::G)
-                                            |_->(false,G)
-                                            
-                                    |a::resto->let z=(search f G) //Search cerca f in G e restituisce (bool,snd(f,expr))
-                                               match  fst(z) with
-                                               |true-> match tb with
-                                                       |ECall(_,f,lexpr1)::rest1->(unifyexpr (concatenate (a::resto) rest) (concatenate lexpr1 rest1) G)
-                                                       |_->failwith"errore"
-                                               |_->failwith"non so chi sia f"
-let x=unifyexpr [ECall("ciao","x",[])]  [ECall("ciao","f",[ENumber 1])] [("f",ECall("ciao","a",[]))] 
-
-printf "%A" x
-
-
-let rec unifytipes ta tb G=
-    match ta with
-    |
-
-
-
-
-(*
-let rec unifycomm ta tb G=
-    match ta with
-    |Declaration (f,lstr,expr)->match tb with
-                                      |Declaration (g,lstr1,expr1)->if f=g then if (ugualelunghezza lstr lstr1) then 
-    
-
-*)
-
-(*
-let y=(evaluate (snd(z)) (a::resto)) //Evaluate da fare, sostituisce nel primo argomento di tipo espressione gli elementi della lista del secondo argomento
-                                                              match tb with 
-                                                                    |(ECall(_,g,[]))::rest1->if (isinlistexpr (EString g) y) then (false,G) 
-                                                                                                                                else let z1=(search g G)
-                                                                                                                                     if fst(z1) then (unifyexpr y::rest snd(z1)::rest1 G) else (unifyexpr rest rest1 (g,y)::G)
-                                                                    |(Ecall(_,g,lexpr1))::rest1-> if f=g then (unifyexpr (concatenate lexpr rest) (concatenate lexpr1 rest1) G) else (false,G)
-                                                                    |_->(false,G)
-                                                                else failwith "non so cosa sia f"                         
-*)      
-
-
-let rec f t=
-    match t with            //Qui tolgo le etichette di Alberello per fare il patt match giu'
-        |[]->[]
-        |(Foglia a)::b-> a::(f b)
-        |_->failwith"devo considerare ancora questi casi"
-
-
-let rec hmExpr Gamma (expr:Expression)= 
-        match expr with
-        | ENumber a ->   TNumber
-        | EBool a ->  TBool
-        | EString a-> TString
-        | ECall (_,str,lexpr)->let s=search str Gamma
-                               failwith "da continuare"
-
-
-             
-
-let rec hmComm  Gamma c=
-    match c with
-    |Declaration (str,lstr,expr)-> if (isin lstr expr) then TFun (unifyexpr, hmExpr Gamma expr) else failwith "errore"
-                    
-
-
-
-
-
-(*
-    let s=List.map (hmExpr Gamma) args
-                                let s1=(f s)
-                                let FGamma=snd Gamma 
-                                let ApplGamma=FGamma str
-                                match ApplGamma with
-                                |TFun (a,b)->   match a with            //Qui controllo che il tipo degli input della funzione siano uguali al tipo della 
-                                                |s1->Foglia b
-                                                |_->failwith "errore"
-                                |_->failwith "errore"
-*)
-                   
-
-(*
-let rec hmprogr (p:Program) Gamma=
-    match p with
-    |(Program [])->([],Gamma)
-    |(Program (command::commands))->let (c,_)=(hmcom command Gamma)
-                                    (c::hmprog(commands,Gamma),Gamma)
-    |_->failwith "errore";*)
-*)
-
 module VoxLogicA.TypeInference
 
 
@@ -408,21 +182,41 @@ let rec Rulesystemexpr (Gamma G) t=
 
 let rec proiezione1 lst=
     match lst with
-    |[]->[]
-    |a::rest->a
-
+    |Mono1 (Appl("*",[a;_]))->a
+    |Mono1(Var "Finelista")->Var "Finelista"
+    |_->failwith "errore"
 
 let rec find1 lst z (Gamma G)= //cerca la lista di stringhe in z e fornisce un tipo alle sue componenti
     match lst with
-    |[]->z
+    |[]->Mono1(Var "Finelista")
     |a::resto->match z with
                |Mono1(Var str)->match  find str G with
-                                |true-> let y=(secondfindlist str G)
-                                        match y with
-                                        |Mono1(_)->Mono1(Appl("*",y,resto))
+                                |true-> match str=a with
+                                        |true->let y=(secondfindlist str G)
+                                               match y with
+                                                |Mono1(b)->Mono1(Appl("*",[b;proiezione1 (find1 resto z (Gamma G))]))
+                                                |Quantifier(lst,p)->let y1=formanormale y
+                                                                    match y1 with
+                                                                    |Quantifier(lst1,po)->match po with
+                                                                                          |Mono1 q->Quantifier(lst1,Mono1(Appl("*",[q;proiezione1 (find1 resto z (Gamma G))])))
+                                                                                          |_->failwith "errore impossibile"
+                                                                    |_->failwith "errore impossibile"//teoricamente non dovrebbe mai entrare in questo errore
 
+                                        |false->Quantifier([a],Mono1(Appl("*",[Var "a";proiezione1 (find1 resto z (Gamma G))]))) //nel momento in cui a non e' presente in z, essa e' una variabile libera
+                                |_->failwith "errore no so di cosa tu stia parlando" //avviene quando chiami una funzione che non e' nel contesto
+                |Mono1(Appl(str,lst))-> match str=a with
+                                        |true->let y=(secondfindlist str G)
+                                               match y with
+                                                |Mono1(b)->Mono1(Appl("*",[b;proiezione1 (find1 resto z (Gamma G))]))
+                                                |Quantifier(lst,p)->let y1=formanormale y
+                                                                    match y1 with
+                                                                    |Quantifier(lst1,po)->match po with
+                                                                                          |Mono1 q->Quantifier(lst1,Mono1(Appl("*",[q;proiezione1 (find1 resto z (Gamma G))])))
+                                                                                          |_->failwith "errore impossibile"
+                                                                    |_->failwith "errore impossibile"
+                                        |_->failwith "funzione da continuare"
 
-
+                                        
 
 
 let rec Rulesystemcomm (Gamma G) t=
