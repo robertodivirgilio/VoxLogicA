@@ -1,121 +1,7 @@
-module VoxLogicA.TypeInference
-
-
 type Mono= Var of string|Appl of string*list<Mono> //MONOTIPI
 type Poly=Mono1 of Mono|Quantifier of list<string>*Poly //POLITIPI
-
-
-
-
-let rec concatenate2 ls1 ls2=
-    match ls1 with
-    |[]->ls2
-    |a::rest->a::(concatenate2 rest ls2)
-
-let rec concatenate lstoflst=
-    match lstoflst with
-    |[]->[]
-    |a::rest->(concatenate2 a (concatenate rest))
-
-let rec find x z=
-    match z with
-    |[]->false
-    |a::resto->if a=x then true else (find x resto)
-
-let rec remove z a x=  //rimuove x dalla lista z (Ho messo x alla fine cos'i da poter usare List.map quando voglio togliere piu' di un termine da z )
-    match z with
-    |[]->a
-    |y::resto->if x=y then (remove resto a x) else (remove  resto (concatenate2 a [y]) x)
-
-let rec convert lst= //converte una lista di Mono in una lista di Mono1 (quindi di Poly)
-    match lst with
-    |[]->[]
-    |(Var a)::rest->(Mono1 (Var a))::(convert rest)
-    |(Appl (b,x))::rest->(Mono1 (Appl (b,x)))::(convert rest)
-
-let rec freecalculatorpoly x= // calcola le variabili libere di un termine Poly
-        match x with
-        |Mono1 a->match a with
-                    |Var s->s::[]
-                    |Appl (s,lst)->concatenate (List.map freecalculatorpoly  (convert lst))
-        |Quantifier (lstr,a)->match lstr with
-                                |[]->freecalculatorpoly a
-                                |x::resto->let z=(freecalculatorpoly (Quantifier (resto,a)))
-                                           if (find x z) then (remove  z [] x) else z
-
-
-
 type Context=Gamma of list<string*Poly>
 
-let rec freecalculatorenv G= //calcola le variabili libere di un contesto
-    match G with
-    |Gamma []->[]
-    |Gamma (a::rest)->concatenate2 (freecalculatorpoly (snd(a))) (freecalculatorenv (Gamma rest))
-
-//Denotiamo con una tripla (G,x,e) la frase "G dimostra che x ha tipo e"
-// calcola le variabili libere di una coppia (contesto,termine) (ci servira' piu' tardi)
-let rec freecalculatormisto (G,x)=
-    let fenv=freecalculatorenv G
-    let fx=freecalculatorpoly x
-    concatenate(List.map (remove fx []) fenv) //POSSIBILE ERRORE: NON SO SE VOGLIO L'ULTIMO TERMINE DI (LIST.MAP...) O LA CONCATENAZIONE: BISOGNA FARE DELLE PROVE
-
-
-let rec findforlist a b=
-        match b with
-        |[]-> false 
-        |x::rest->match a with
-                    |[]->false
-                    |y::rest1->if x=y then true else (findforlist rest1 rest)
-
-
-
-let rec isamonosubstitution ta tb= //ci dice se ta si ottiene tramite una sostituzione applicata a tb
-    match ta with
-    |[]-> if tb=[] then true else false
-    |(Var s)::rest-> match tb with
-                     |(Var t)::rest1->  isamonosubstitution rest rest1 
-                     |_-> false 
-    |Appl(C,s)::rest->match tb with
-                        |Appl(D,t)::rest1-> match C=D with
-                                            |true->match s with
-                                                        |[]-> if t=[] then (isamonosubstitution rest rest1) else false 
-                                                        |a::rest2->match t with 
-                                                                    |[]-> false
-                                                                    |b::rest3->(isamonosubstitution (concatenate2 rest2 rest) (concatenate2 rest3 rest1))
-                                            |false->false
-                        |_->false 
-
-
-let rec isasubstitution ta tb= //Ci dice se posso ottenere ta tramite una sostituzione applicata a tb
- match tb with
-    |Mono1 a-> match tb with
-                |Mono1 b->if (isamonosubstitution (a::[]) (b::[]))  then true else false 
-                |_->false
-    |Quantifier (lst,p)-> match lst with
-                             |[]-> isasubstitution ta p  
-                             |a::rest-> match ta with
-                                        |Mono1 b->(isasubstitution ta (Quantifier(rest,p)))
-                                        |Quantifier(lst1,q)->match lst1 with 
-                                                             |[]-> isasubstitution p tb
-                                                             |b::rest1-> if a=b then (isasubstitution (Quantifier (lst1,q)) (Quantifier (lst,p))) else (isasubstitution ta (Quantifier (lst,p)))//Qui dico che i quantificatori devono essere uguali
-
-
-let rec mgt ta tb=   //Ci dice se ta e' piu' generico di tb
-    match ta with
-    |(Quantifier (lstr,p))->match tb with
-                            |(Quantifier (lstr1,q))-> if (findforlist lstr1 (freecalculatorpoly ta)) then false else if (isasubstitution q ta) then true else false
-                            |Mono1 q-> mgt p tb
-    |Mono1 a->match tb with
-                |Mono1 b-> if (isamonosubstitution (b::[]) (a::[])) then true else false 
-                |_->false 
-
-//tipofunzione=Appl("freccia",[tipo1;tipo2])
-
-let rec secondfindlist f lst=
-    match lst with
-    |[]->failwith "errore"
-    |a::resto->match a with
-                |(g,q)->if g=f then q else (secondfindlist f resto)
                
 type Position = string
 
@@ -133,96 +19,203 @@ type Command =
 
 type Program = Program of list<Command>
 
-(*
-type Mono= Var of string|Appl of string*list<Mono> //MONOTIPI
-type Poly=Mono1 of Mono|Quantifier of list<string>*Poly //POLITIPI
-*)
-let rec formanormale (Quantifier (lstr,p))=
-    match p with
-    |Mono1 a->Quantifier (lstr,p)
-    |Quantifier (lstr1,q)-> formanormale (Quantifier (concatenate2 lstr lstr1,q))
 
+let newvar (r:string)= r+r
 
-let rec convert a=
+let rec fst1 a=
     match a with
-    |Appl ("*",[])->[]
-    |Appl ("*",b::rest)->(Mono1 b)::convert(Appl ("*",rest))
-    |_->failwith "questa funzione non serve ad altro"
+    |(b,_,_)->b
 
-let rec mgtforlist ls1 ls2= //ci dice se tutti gli elemeti di ls1 sono piu' generali degli elementi di ls2
-    match ls1 with 
-    |[]-> match ls2 with 
-            |[]->true
-            |_->false
-    |a::rest-> match ls2 with
-                |b::rest1 ->if (mgt a b) then mgtforlist rest rest1 else false
-                |_->false 
+let rec snd1 a=
+    match a with
+    |(_,b,_)->b
+ 
+let rec trd1 a=
+    match a with
+    |(_,_,b)->b
 
+let rec concatenate2 ls1 ls2=
+    match ls1 with
+    |[]->ls2
+    |a::rest->a::(concatenate2 rest ls2)
+
+let rec concatenate lstoflst=
+    match lstoflst with
+    |[]->[]
+    |a::rest->(concatenate2 a (concatenate rest))
+
+let rec formanormale p=
+    match p with
+    |Mono1 a->p
+    |Quantifier (lstr,q)-> match q with
+                            |Mono1 a->p
+                            |Quantifier(lstr1,r)->formanormale (Quantifier (concatenate2 lstr lstr1,r))
+
+let rec findincontext r (Gamma G)=
+    match G with
+    |[]->false 
+    |(a,b)::rest-> if a=r then true else findincontext r (Gamma rest)
+
+let rec find x z=
+    match z with
+    |[]->false
+    |a::resto->if a=x then true else (find x resto)
+
+let rec sfoltisci lst= //toglie elementi che si ripetono da una lista
+    match lst with
+    |[]->[]
+    |a::rest->if find a rest then sfoltisci rest else a::(sfoltisci rest)
+
+let rec secondfindlist f lst=
+    match lst with
+    |[]->failwith "errore"
+    |a::resto->match a with
+                |(g,q)->if g=f then q else (secondfindlist f resto)
+               
+let rec variabilidi ta= //dice quali sono le variabili di ta
+    match ta with
+    |Var s->[s]
+    |Appl("->",[a;b])->sfoltisci(concatenate2 (variabilidi a) (variabilidi b))
+
+let rec fstfind s G=
+    match G with
+    |[]->false
+    |(a,b)::resto-> if s=a then true else fstfind s resto
+
+let rec remove z a x=  //rimuove x dalla lista z (Ho messo x alla fine cos'i da poter usare List.map quando voglio togliere piu' di un termine da z )
+    match z with
+    |[]->a
+    |y::resto->if x=y then (remove resto a x) else (remove  resto (concatenate2 a [y]) x)
+
+let rec Applicazione lst=
+    match lst with
+    |x::rest->match (formanormale x) with
+                |Mono1(r)->Appl("->",[r;Applicazione rest])
+                |Quantifier(lst,Mono1(r))->Appl("->",[r;Applicazione rest])
+                |_->failwith "non so che altri casi mettere"
+    |_->failwith "non puoi mai stare qui"
+
+let rec quantificatoridi p=
+     match p with
+     |Quantifier(lst,p)->lst
+     |Mono1(r)->[]
+
+
+let rec Uguaglianza a s G=
+    match a with
+    |Var e->match s with
+            |Var f-> match e with
+                     |"Intero"-> if e=f then true,G else false,G
+                     |"Booleano"-> if e=f then true,G else false,G
+                     |"Stringa"-> if e=f then true,G else false,G
+                     |_->match f with
+                            |"Intero"-> (true,(e,Mono1(Var"Inteero"))::G)
+                            |"Booleano"->(true,(e,Mono1(Var"Bool"))::G)
+                            |"Stringa"-> (true,(e,Mono1(Var"Stringa"))::G)
+                            |_->(true,G)
+            |Appl("->",[x;y])->(true,(e,Quantifier(variabilidi (Appl("->",[x;y])),Mono1(Appl("->",[x;y]))))::G)
+    |Appl("->",[x;y])->match s with
+                        |Var s->(false,G)
+                        |Appl("->",[x1;y1])->(fst(Uguaglianza x x1 G)&&fst(Uguaglianza y y1 (snd(Uguaglianza x x1 G))),sfoltisci(concatenate2(concatenate2 (snd(Uguaglianza x x1 G)) (snd(Uguaglianza y y1 G))) G))
+
+let rec Valutamono r s (Gamma G)=
+    match r with
+        |Var r1->match r1 with
+                    |"Intero"->(r,G,false)
+                    |"Booleano"->(r,G,false)
+                    |"Stringa"->(r,G,false)
+                    |_->match fstfind r1 G with
+                        |true->match formanormale(secondfindlist r1 G)with
+                                |Mono1(r2)->Valutamono r2 s (Gamma G)
+                                |Quantifier(lst,Mono1(r2))->Valutamono r2 s (Gamma G)
+                                |_->(r,G,false)
+                        |false->let r2=newvar r1
+                                (Var r2,(r1,(Quantifier(variabilidi (Appl("->",[s;Var r2])),Mono1(Appl("->",[s;Var r2])))))::G,true)
+        |Appl("->",[a;b])->if fst(Uguaglianza a s G) then (b,snd(Uguaglianza a s G),true) else (r,G,false)//forse qui bisogna valutare b nel nuovo ambiente
+        |_->failwith "errore42"
+
+
+let rec Valuta1 tipo x (Gamma G)=
+    let tipo1=formanormale tipo
+    let x1=formanormale x
+    match tipo1 with
+        |Mono1(r)->failwith "errore"// sono solo composizioni di basi, non posso sostituire
+        |Quantifier(lst,Mono1(r))->match  x1 with
+                                    |Mono1(s)->if trd1(Valutamono r s (Gamma G)) then (Quantifier(variabilidi(fst1(Valutamono r s (Gamma G))),Mono1(fst1(Valutamono r s (Gamma G)))),snd1(Valutamono r s (Gamma G))) else failwith "errore"
+                                    |Quantifier(lst,Mono1(s))->if trd1(Valutamono r s (Gamma G)) then (Quantifier(variabilidi(fst1(Valutamono r s (Gamma G))),Mono1(fst1(Valutamono r s (Gamma G)))),snd1(Valutamono r s (Gamma G))) else failwith "errore"
+
+
+
+let rec Valuta tipo lst (Gamma G)=
+    match lst with
+    |[]->(tipo,G)
+    |x::rest-> (Valuta (fst(Valuta1 tipo x (Gamma G))) rest (Gamma (snd(Valuta1 tipo x (Gamma G)))))
+                                                                                                 
 
 let rec Rulesystemexpr (Gamma G) t=
     match t with
-    |ENumber a->Mono1 (Var "Number")
-    |EBool b->Mono1(Var "Boolean")
-    |EString s->Mono1(Var "String")
-    |ECall (_,f,lexpr)-> match (find f ((List.map fst ) G)) with
-                            |true ->match (secondfindlist f G)  with
-                                    |Quantifier (lstr,p)-> let (Quantifier (lstr1,mono1))=formanormale(Quantifier (lstr,p))//pattern matching completo invece, viene chiamata solo in questa eventualita'
-                                                           match mono1 with
-                                                            |Mono1(Appl ("freccia",[a;b]))->match ((List.map (Rulesystemexpr (Gamma G))) lexpr) with
-                                                                                            |[]->Quantifier(lstr1,Mono1(Appl ("freccia",[a;b])))//  Ho messo questo risultato perche' se qualcuno chiama f senza parametri (ma e' memorizzata) allora vuole vedere che f ha tipo funzione che va da a a b
-                                                                                            |x1::rest->if mgtforlist (convert a) (x1::rest) then (Mono1 b) else failwith "errore"                                                           
-                                                            |_->failwith "stai applicando su qualcosa che non e' una funzione"
-                                    |Mono1(Appl ("freccia",[a;b]))->match ((List.map (Rulesystemexpr (Gamma G))) lexpr) with
-                                                                    |[]->Mono1(Appl ("freccia",[a;b]))//  Ho messo questo risultato perche' se qualcuno chiama f senza parametri (ma e' memorizzata) allora vuole vedere che f ha tipo funzione che va da a a b
-                                                                    |x1::rest->if mgtforlist (convert a) (x1::rest) then (Mono1 b) else failwith "errore"
-                                    |_->failwith "stai applicando qualcosa a un oggetto che non e' una funzione"
-                            |false->match lexpr with
-                                    |[]->Quantifier(["f"],Mono1 (Var f)) //HM dice che nel momento di una definizione bisogna essere "Piu' generici possibile"
-                                    |_-> failwith "Non so di cosa tu stia parlando" //avviene quando chiami una funzione che non e' nel contesto
+    |ENumber l->(Mono1(Var "Intero"),G)
+    |EBool b-> (Mono1(Var "Booleano"),G)
+    |EString s-> (Mono1(Var "Stringa"),G)
+    |ECall(_,s,lst)-> match (fstfind s G) with
+                      |false->let tipo_s=(Quantifier([s],Mono1(Var s)))
+                              let lst1=(List.map fst) (List.map (Rulesystemexpr (Gamma G)) lst)
+                              Valuta tipo_s lst1 (Gamma G)
+                      |true-> let tipo_s=formanormale(secondfindlist s G)
+                              let lst1=(List.map fst) (List.map (Rulesystemexpr (Gamma G)) lst)
+                              Valuta tipo_s lst1 (Gamma G)
 
-let rec proiezione1 lst=
+let rec ricercalista lst G=
     match lst with
-    |Mono1 (Appl("*",[a;_]))->a
-    |Mono1(Var "Finelista")->Var "Finelista"
-    |_->failwith "errore"
+    |[]-> true 
+    |x::rest->if fstfind x G then (ricercalista rest G) else false 
 
-let rec find1 lst z (Gamma G)= //cerca la lista di stringhe in z e fornisce un tipo alle sue componenti
+let rec ricercalista1 lst G a=
     match lst with
-    |[]->Mono1(Var "Finelista")
-    |a::resto->match z with
-               |Mono1(Var str)->match  find str G with
-                                |true-> match str=a with
-                                        |true->let y=(secondfindlist str G)
-                                               match y with
-                                                |Mono1(b)->Mono1(Appl("*",[b;proiezione1 (find1 resto z (Gamma G))]))
-                                                |Quantifier(lst,p)->let y1=formanormale y
-                                                                    match y1 with
-                                                                    |Quantifier(lst1,po)->match po with
-                                                                                          |Mono1 q->Quantifier(lst1,Mono1(Appl("*",[q;proiezione1 (find1 resto z (Gamma G))])))
-                                                                                          |_->failwith "errore impossibile"
-                                                                    |_->failwith "errore impossibile"//teoricamente non dovrebbe mai entrare in questo errore
+    |[]->a
+    |x::rest->if fstfind x G then (ricercalista1 rest G ((secondfindlist x G)::a)) else (ricercalista1 rest G (Quantifier([x],Mono1(Var x))::a))
 
-                                        |false->Quantifier([a],Mono1(Appl("*",[Var "a";proiezione1 (find1 resto z (Gamma G))]))) //nel momento in cui a non e' presente in z, essa e' una variabile libera
-                                |_->failwith "errore no so di cosa tu stia parlando" //avviene quando chiami una funzione che non e' nel contesto
-                |Mono1(Appl(str,lst))-> match str=a with
-                                        |true->let y=(secondfindlist str G)
-                                               match y with
-                                                |Mono1(b)->Mono1(Appl("*",[b;proiezione1 (find1 resto z (Gamma G))]))
-                                                |Quantifier(lst,p)->let y1=formanormale y
-                                                                    match y1 with
-                                                                    |Quantifier(lst1,po)->match po with
-                                                                                          |Mono1 q->Quantifier(lst1,Mono1(Appl("*",[q;proiezione1 (find1 resto z (Gamma G))])))
-                                                                                          |_->failwith "errore impossibile"
-                                                                    |_->failwith "errore impossibile"
-                                        |_->failwith "funzione da continuare"
+let rec secondfindlist1 lst G=
+    match lst with
+    |[]->[]
+    |x::rest->(secondfindlist x G)::(secondfindlist1 rest G)
 
+let rec reverse lst a=
+    match lst with
+    |[]->a
+    |x::rest->reverse rest (x::a)
+
+let rec Creaappl lst tipo=
+    let z=formanormale(tipo)
+    match z with
+    |Quantifier(lst1,Mono1 m)->match lst with
+                                |[]->tipo
+                                |x::rest->let z1=formanormale x
+                                          match z1 with
+                                          |Quantifier(lst2,Mono1 m1)->Creaappl rest (Quantifier(sfoltisci(concatenate2 lst2 lst1),Mono1(Appl("->",[m1;m]))))
+                                          |Mono1(m1)->Creaappl rest (Quantifier(lst1,Mono1(Appl("->",[m1;m]))))
+    |Mono1(m)->match lst with
+                |[]->tipo
+                |x::rest->let z1=formanormale x
+                          match z1 with
+                          |Quantifier(lst2,Mono1 m1)->Creaappl rest (Quantifier(lst2,Mono1(Appl("->",[m1;m]))))
+                          |Mono1(m1)->Creaappl rest (Mono1(Appl("->",[m1;m])))
+        
+
+let rec Rulesystemcom t (Gamma G)=
+    match t with
+    |Declaration(s,lst,expr)->let (tipoe,G1)=(Rulesystemexpr (Gamma G) expr)
+                              match lst with
+                              |[]->tipoe
+                              |x::rest->Creaappl (ricercalista1 lst G []) tipoe  
+                                        
+                                                
                                         
 
+let x=Declaration("f",["g"],ECall("Posizione","f",[ECall("Posizione","g",[])]))
+let y=Declaration("f",["g";"h";"w"],ECall("p","f",[ECall("Posizione","g",[])]))
+let z=Declaration("f",["g";"h";"w"],ECall("p","f",[ECall("Posizione","g",[ECall("Posizione","h",[])])]))
 
-let rec Rulesystemcomm (Gamma G) t=
-    match t with 
-    |Declaration (s,lstr,expr)->let z= Rulesystemexpr (Gamma G) expr
-                                let y=find1 lstr z (Gamma G)
-                                Mono1(Appl("freccia",[y,z]))
-    |Print (_,s,expr)->let z= Rulesystemexpr (Gamma G) expr
-                       
+printfn("%A") (Rulesystemcom x (Gamma []))
+printfn("%A") (Rulesystemcom y (Gamma []))
+printfn("%A") (Rulesystemcom z (Gamma []))
