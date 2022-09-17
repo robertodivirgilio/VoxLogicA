@@ -1,3 +1,5 @@
+module VoxLogicA.TypeInference
+
 type Mono= Var of string|Appl of string*list<Mono> //MONOTIPI
 type Poly=Mono1 of Mono|Quantifier of list<string>*Poly //POLITIPI
 type Context=Gamma of list<string*Poly>
