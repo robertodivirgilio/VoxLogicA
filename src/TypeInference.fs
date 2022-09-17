@@ -68,7 +68,7 @@ let rec sfoltisci lst= //toglie elementi che si ripetono da una lista
 
 let rec secondfindlist f lst=
     match lst with
-    |[]->failwith "errore"
+    |[]->failwith "errore1"
     |a::resto->match a with
                 |(g,q)->if g=f then q else (secondfindlist f resto)
                
@@ -76,6 +76,7 @@ let rec variabilidi ta= //dice quali sono le variabili di ta
     match ta with
     |Var s->[s]
     |Appl("->",[a;b])->sfoltisci(concatenate2 (variabilidi a) (variabilidi b))
+    |_->failwith "errore2"
 
 let rec fstfind s G=
     match G with
@@ -100,23 +101,41 @@ let rec quantificatoridi p=
      |Quantifier(lst,p)->lst
      |Mono1(r)->[]
 
-
 let rec Uguaglianza a s G=
     match a with
     |Var e->match s with
             |Var f-> match e with
-                     |"Intero"-> if e=f then true,G else false,G
-                     |"Booleano"-> if e=f then true,G else false,G
-                     |"Stringa"-> if e=f then true,G else false,G
+                     |"Intero"-> match f with
+                                    |"Intero"->(true,G)
+                                    |"Booleano"->(false,G)
+                                    |"Stringa"->(false,G)
+                                    |_->(true,(f,Mono1(Var "Intero"))::G)
+                     |"Booleano"->match f with
+                                    |"Intero"->(false,G)
+                                    |"Booleano"->(true,G)
+                                    |"Stringa"->(false,G)
+                                    |_->(true,(f,Mono1(Var "Booleano"))::G)
+                     |"Stringa"->match f with
+                                    |"Intero"->(false,G)
+                                    |"Booleano"->(false,G)
+                                    |"Stringa"->(true,G)
+                                    |_->(true,(f,Mono1(Var "Stringa"))::G)
                      |_->match f with
-                            |"Intero"-> (true,(e,Mono1(Var"Inteero"))::G)
-                            |"Booleano"->(true,(e,Mono1(Var"Bool"))::G)
+                            |"Intero"-> (true,(e,Mono1(Var"Intero"))::G)
+                            |"Booleano"->(true,(e,Mono1(Var"Booleano"))::G)
                             |"Stringa"-> (true,(e,Mono1(Var"Stringa"))::G)
                             |_->(true,G)
             |Appl("->",[x;y])->(true,(e,Quantifier(variabilidi (Appl("->",[x;y])),Mono1(Appl("->",[x;y]))))::G)
+            |_->failwith "errore3"
     |Appl("->",[x;y])->match s with
-                        |Var s->(false,G)
+                        |Var t->match t with
+                                |"Intero"->failwith "errore4"
+                                |"Booleano"->failwith "errore5"
+                                |"Stringa"->failwith "errore6"
+                                |_->Uguaglianza s a G
                         |Appl("->",[x1;y1])->(fst(Uguaglianza x x1 G)&&fst(Uguaglianza y y1 (snd(Uguaglianza x x1 G))),sfoltisci(concatenate2(concatenate2 (snd(Uguaglianza x x1 G)) (snd(Uguaglianza y y1 G))) G))
+                        |_->failwith "errore7"
+    |_->failwith "errore8"
 
 let rec Valutamono r s (Gamma G)=
     match r with
@@ -132,17 +151,22 @@ let rec Valutamono r s (Gamma G)=
                         |false->let r2=newvar r1
                                 (Var r2,(r1,(Quantifier(variabilidi (Appl("->",[s;Var r2])),Mono1(Appl("->",[s;Var r2])))))::G,true)
         |Appl("->",[a;b])->if fst(Uguaglianza a s G) then (b,snd(Uguaglianza a s G),true) else (r,G,false)//forse qui bisogna valutare b nel nuovo ambiente
-        |_->failwith "errore42"
+        |_->failwith "errore9"
 
 
 let rec Valuta1 tipo x (Gamma G)=
     let tipo1=formanormale tipo
     let x1=formanormale x
     match tipo1 with
-        |Mono1(r)->failwith "errore"// sono solo composizioni di basi, non posso sostituire
-        |Quantifier(lst,Mono1(r))->match  x1 with
-                                    |Mono1(s)->if trd1(Valutamono r s (Gamma G)) then (Quantifier(variabilidi(fst1(Valutamono r s (Gamma G))),Mono1(fst1(Valutamono r s (Gamma G)))),snd1(Valutamono r s (Gamma G))) else failwith "errore"
-                                    |Quantifier(lst,Mono1(s))->if trd1(Valutamono r s (Gamma G)) then (Quantifier(variabilidi(fst1(Valutamono r s (Gamma G))),Mono1(fst1(Valutamono r s (Gamma G)))),snd1(Valutamono r s (Gamma G))) else failwith "errore"
+        |Mono1(r)->match x1 with
+                    |Quantifier(lst,Mono1(r1))->failwith "non posso sostituire"
+                    |Mono1(r1)-> if trd1(Valutamono r r1 (Gamma G)) then (Mono1(fst1(Valutamono r r1 (Gamma G)))),snd1(Valutamono r r1 (Gamma G)) else failwith "errore18"
+                    |_->failwith "errore10"
+        |Quantifier(lst,Mono1(r))->match  x1 with 
+                                    |Mono1(s)->if trd1(Valutamono r s (Gamma G)) then (Quantifier(variabilidi(fst1(Valutamono r s (Gamma G))),Mono1(fst1(Valutamono r s (Gamma G)))),snd1(Valutamono r s (Gamma G))) else failwith "errore19"
+                                    |Quantifier(lst,Mono1(s))->if trd1(Valutamono r s (Gamma G)) then (Quantifier(variabilidi(fst1(Valutamono r s (Gamma G))),Mono1(fst1(Valutamono r s (Gamma G)))),snd1(Valutamono r s (Gamma G))) else failwith "errore20"
+                                    |_->failwith "errore11"
+        |_->failwith "errore12"
 
 
 
@@ -185,37 +209,52 @@ let rec reverse lst a=
     |[]->a
     |x::rest->reverse rest (x::a)
 
-let rec Creaappl lst tipo=
+let rec Ritrova m1 G=
+    match m1 with
+    |Var s->match s with
+            |"Intero"->([],Var s)
+            |"Booleano"->([],Var s)
+            |"Stringa"->([],Var s)
+            |_->match  fstfind s G with 
+                    |true->match formanormale(secondfindlist s G) with
+                            |Mono1(roba)->([],roba)
+                            |Quantifier(lst2,Mono1(roba))->(lst2,roba)
+                            |_->failwith "errore13"
+                    |false->([s],Var s)
+    |Appl("->",[a;b])->(sfoltisci(concatenate2 (fst(Ritrova a G)) (fst(Ritrova b G))),Appl("->",[snd(Ritrova a G);snd(Ritrova b G)]))
+    |_->failwith "errore14"
+                                    
+
+let rec Creaappl lst tipo (Gamma G)=
     let z=formanormale(tipo)
     match z with
     |Quantifier(lst1,Mono1 m)->match lst with
                                 |[]->tipo
                                 |x::rest->let z1=formanormale x
                                           match z1 with
-                                          |Quantifier(lst2,Mono1 m1)->Creaappl rest (Quantifier(sfoltisci(concatenate2 lst2 lst1),Mono1(Appl("->",[m1;m]))))
-                                          |Mono1(m1)->Creaappl rest (Quantifier(lst1,Mono1(Appl("->",[m1;m]))))
+                                          |Quantifier(lst2,Mono1 m1)->Creaappl rest (Quantifier(sfoltisci(concatenate [fst(Ritrova m1 G);lst2;lst1]),Mono1(Appl("->",[snd(Ritrova m1 G);m])))) (Gamma G)
+                                          |Mono1(m1)->Creaappl rest (Quantifier(sfoltisci (concatenate2 (fst(Ritrova m1 G)) lst1) ,Mono1(Appl("->",[snd(Ritrova m1 G);m])))) (Gamma G)
+                                          |_->failwith "errore15"
     |Mono1(m)->match lst with
                 |[]->tipo
                 |x::rest->let z1=formanormale x
                           match z1 with
-                          |Quantifier(lst2,Mono1 m1)->Creaappl rest (Quantifier(lst2,Mono1(Appl("->",[m1;m]))))
-                          |Mono1(m1)->Creaappl rest (Mono1(Appl("->",[m1;m])))
-        
+                          |Quantifier(lst2,Mono1 m1)->Creaappl rest (Quantifier(variabilidi (Appl("->",[snd(Ritrova m1 G);snd(Ritrova m G)])),Mono1(Appl("->",[snd(Ritrova m1 G);snd(Ritrova m G)])))) (Gamma G)
+                          |Mono1(m1)->Creaappl rest (Mono1(Appl("->",[snd(Ritrova m1 G);snd(Ritrova m G)]))) (Gamma G)
+                          |_->failwith "errore16"
+    |_->failwith "errore17"
 
 let rec Rulesystemcom t (Gamma G)=
     match t with
-    |Declaration(s,lst,expr)->let (tipoe,G1)=(Rulesystemexpr (Gamma G) expr)
+    |Declaration(s,lst,expr)->let (tipoe,G1)=Rulesystemexpr (Gamma G) expr
                               match lst with
-                              |[]->tipoe
-                              |x::rest->Creaappl (ricercalista1 lst G []) tipoe  
+                              |[]->tipoe,G1
+                              |x::rest->(Creaappl (ricercalista1 lst G1 []) tipoe (Gamma G1)),G1
+    |_->failwith "gli altri comandi non sono stati ancora tipati per bene"
                                         
                                                 
                                         
 
-let x=Declaration("f",["g"],ECall("Posizione","f",[ECall("Posizione","g",[])]))
-let y=Declaration("f",["g";"h";"w"],ECall("p","f",[ECall("Posizione","g",[])]))
-let z=Declaration("f",["g";"h";"w"],ECall("p","f",[ECall("Posizione","g",[ECall("Posizione","h",[])])]))
+let x=Declaration("h",["f";"g"],ECall("","f",[ECall("","g",[])]))
 
 printfn("%A") (Rulesystemcom x (Gamma []))
-printfn("%A") (Rulesystemcom y (Gamma []))
-printfn("%A") (Rulesystemcom z (Gamma []))
